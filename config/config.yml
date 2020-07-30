@@ -1,0 +1,15 @@
+train_size: 60000
+test_size: 10000
+input_shape: 
+  - 28
+  - 28
+fc_layers: 
+  - 128
+  - 128
+dropout: 0.5
+activation: 'relu'
+optimizer: 'adam'
+metrics: # 
+  - 'accuracy'
+epochs: 5 # number of epochs
+output_shape: 10 # number of classification categories
