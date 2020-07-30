@@ -19,13 +19,14 @@ import mlflow
 import mlflow.tensorflow
 
 EXPERIMENT_NAME = "my-experiment"
-TRACKING_PATH = os.path.join(os.path.dirname(os.getcwd()), 'data', 'mlruns')
+DATA_PATH = os.path.join(os.path.dirname(os.getcwd()), 'data')
 
-mlflow.set_tracking_uri('file://' + TRACKING_PATH)
+mlflow.set_tracking_uri('file://' + os.path.join(DATA_PATH, 'mlruns'))
 mlflow.set_experiment(EXPERIMENT_NAME)
 
 # # Enable auto-logging to MLflow to capture TensorBoard metrics.
 # mlflow.tensorflow.autolog()
+
 
 def get_time(timezone='US/Pacific'):
     """
@@ -65,13 +66,13 @@ def create_model(cfg):
     return model
 
 
-def get_run_id_path():
+def get_run_id_path(dir_name='mlflow'):
     """
     .
     """
     experiment_id = mlflow.get_experiment_by_name(name=EXPERIMENT_NAME).experiment_id
     run_id = mlflow.active_run().info.run_id
-    return os.path.join(TRACKING_PATH, experiment_id, run_id)
+    return os.path.join(DATA_PATH, dir_name, experiment_id, run_id)
 
 
 def get_tensorboard_callbacks():
@@ -79,7 +80,7 @@ def get_tensorboard_callbacks():
     .
     """
     return tf.keras.callbacks.TensorBoard(
-        log_dir=os.path.join(get_run_id_path(), 'tensorboard'),
+        log_dir=os.path.join(get_run_id_path(dir_name='edge_models'), 'tensorboard'),
         update_freq='epoch'
     )
 
@@ -103,7 +104,7 @@ def main():
         with open(os.path.join(config_root, config_file)) as fin:
             cfg = yaml.load(fin, Loader=yaml.FullLoader)
 
-        print('{} Configuration parameters.'.format(get_time()))
+        print('{} Configuration parameters for run_id {}.'.format(get_time(), mlflow.active_run().info.run_id))
         pprint(cfg)
         mlflow.log_params(cfg)
 
@@ -115,20 +116,18 @@ def main():
         ]
         model.fit(x_train, y_train, callbacks=callbacks, epochs=cfg['epochs'])
 
-        # experiment_id = mlflow.get_experiment_by_name(name="my-experiment").experiment_id
-        # run_id = mlflow.active_run().info.run_id
-
         # Export SavedModel
-        # model_local_path = os.path.join(TRACKING_PATH, experiment_id, run_id, 'model')
-        model_local_path = os.path.join(get_run_id_path(), 'model')
-        model.save(model_local_path)
+        model_local_path = os.path.join(get_run_id_path(dir_name='edge_models'))
+        if not os.path.exists(model_local_path): os.makedirs(model_local_path)
+        model.save(os.path.join(model_local_path, 'final_model'))
 
-        mlflow.tensorflow.log_model(
-            tf_saved_model_dir=model_local_path,
-            tf_meta_graph_tags=[tag_constants.SERVING],
-            tf_signature_def_key='serving_default',
-            artifact_path='model'
-        )
+#         mlflow.tensorflow.log_model(
+#             tf_saved_model_dir=model_local_path,
+#             tf_meta_graph_tags=[tag_constants.SERVING],
+#             tf_signature_def_key='serving_default',
+#             artifact_path='model'
+#         )
+#         mlflow.log_artifacts(os.path.join(get_run_id_path(), 'tensorboard'))
 
 
 if __name__ == '__main__':
