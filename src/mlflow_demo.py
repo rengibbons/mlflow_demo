@@ -7,20 +7,26 @@ Script must be run from /MLflowDemo/src
 import os
 import sys
 import numpy as np
-import tensorflow as tf
 import yaml
-import datetime as dt
 from pprint import pprint
+import datetime as dt
 import pytz
 
+import tensorflow as tf
+from tensorflow.python.saved_model import tag_constants
+
 import mlflow
+import mlflow.tensorflow
 
 TIMEZONE = 'US/Pacific'
 
-tracking_uri = 'file://' + os.path.join(os.path.dirname(os.getcwd()), 'data', 'mlruns')
+tracking_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'mlruns')
+tracking_uri = 'file://' + tracking_path
 mlflow.set_tracking_uri(tracking_uri)
 mlflow.set_experiment("my-experiment")
 
+# # Enable auto-logging to MLflow to capture TensorBoard metrics.
+# mlflow.tensorflow.autolog()
 
 def get_time():
     """
@@ -66,7 +72,7 @@ def main():
     """
     print('{} Starting mlflow_demo.py.'.format(get_time()))
     # Load configuration file and default column ordering for df_models.
-    config_root = os.path.join(os.path.expanduser('~'), 'Documents', 'EdgeAnalytics', 'BizDev', 'MLflowDemo', 'config')
+    config_root = os.path.join(os.path.dirname(os.getcwd()), 'config')
 
     # Check if the correct command line arguments are provied.
     if len(sys.argv) not in [2, 3]:
@@ -87,6 +93,18 @@ def main():
 
         model = create_model(cfg)
         model.fit(x_train, y_train, epochs=cfg['epochs'])
+        run_id = mlflow.active_run().info.run_id
+
+#         # Export SavedModel
+#         model_local_path = os.path.join(tracking_path, run_id, 'model')
+#         model.save(model_local_path)
+
+#         mlflow.tensorflow.log_model(
+#             tf_saved_model_dir=model_local_path,
+#             tf_meta_graph_tags=[tag_constants.SERVING],
+#             tf_signature_def_key='serving_default',
+#             artifact_path='model'
+#         )
 
 
 if __name__ == '__main__':
