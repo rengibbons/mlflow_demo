@@ -18,21 +18,20 @@ from tensorflow.python.saved_model import tag_constants
 import mlflow
 import mlflow.tensorflow
 
-TIMEZONE = 'US/Pacific'
+EXPERIMENT_NAME = "my-experiment"
+TRACKING_PATH = os.path.join(os.path.dirname(os.getcwd()), 'data', 'mlruns')
 
-tracking_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'mlruns')
-tracking_uri = 'file://' + tracking_path
-mlflow.set_tracking_uri(tracking_uri)
-mlflow.set_experiment("my-experiment")
+mlflow.set_tracking_uri('file://' + TRACKING_PATH)
+mlflow.set_experiment(EXPERIMENT_NAME)
 
 # # Enable auto-logging to MLflow to capture TensorBoard metrics.
 # mlflow.tensorflow.autolog()
 
-def get_time():
+def get_time(timezone='US/Pacific'):
     """
     Returns the time as a string.
     """
-    return dt.datetime.now(pytz.timezone(TIMEZONE)).strftime('%Y-%m-%d-%H:%M:%S')
+    return dt.datetime.now(pytz.timezone(timezone)).strftime('%Y-%m-%d-%H:%M:%S')
 
 
 def get_dataset(train_size=60000, test_size=10000):
@@ -66,6 +65,25 @@ def create_model(cfg):
     return model
 
 
+def get_run_id_path():
+    """
+    .
+    """
+    experiment_id = mlflow.get_experiment_by_name(name=EXPERIMENT_NAME).experiment_id
+    run_id = mlflow.active_run().info.run_id
+    return os.path.join(TRACKING_PATH, experiment_id, run_id)
+
+
+def get_tensorboard_callbacks():
+    """
+    .
+    """
+    return tf.keras.callbacks.TensorBoard(
+        log_dir=os.path.join(get_run_id_path(), 'tensorboard'),
+        update_freq='epoch'
+    )
+
+
 def main():
     """
     Trains a model on the MNIST dataset.
@@ -92,19 +110,25 @@ def main():
         x_train, y_train, x_test, y_test = get_dataset(cfg['train_size'], cfg['test_size'])
 
         model = create_model(cfg)
-        model.fit(x_train, y_train, epochs=cfg['epochs'])
-        run_id = mlflow.active_run().info.run_id
+        callbacks = [
+            get_tensorboard_callbacks()
+        ]
+        model.fit(x_train, y_train, callbacks=callbacks, epochs=cfg['epochs'])
 
-#         # Export SavedModel
-#         model_local_path = os.path.join(tracking_path, run_id, 'model')
-#         model.save(model_local_path)
+        # experiment_id = mlflow.get_experiment_by_name(name="my-experiment").experiment_id
+        # run_id = mlflow.active_run().info.run_id
 
-#         mlflow.tensorflow.log_model(
-#             tf_saved_model_dir=model_local_path,
-#             tf_meta_graph_tags=[tag_constants.SERVING],
-#             tf_signature_def_key='serving_default',
-#             artifact_path='model'
-#         )
+        # Export SavedModel
+        # model_local_path = os.path.join(TRACKING_PATH, experiment_id, run_id, 'model')
+        model_local_path = os.path.join(get_run_id_path(), 'model')
+        model.save(model_local_path)
+
+        mlflow.tensorflow.log_model(
+            tf_saved_model_dir=model_local_path,
+            tf_meta_graph_tags=[tag_constants.SERVING],
+            tf_signature_def_key='serving_default',
+            artifact_path='model'
+        )
 
 
 if __name__ == '__main__':
