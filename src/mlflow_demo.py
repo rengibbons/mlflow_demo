@@ -24,15 +24,17 @@ DATA_PATH = os.path.join(os.path.dirname(os.getcwd()), 'data')
 mlflow.set_tracking_uri('file://' + os.path.join(DATA_PATH, 'mlruns'))
 mlflow.set_experiment(EXPERIMENT_NAME)
 
-# # Enable auto-logging to MLflow to capture TensorBoard metrics.
-# mlflow.tensorflow.autolog()
+# Enable auto-logging to MLflow to capture TensorBoard metrics.
+mlflow.tensorflow.autolog(every_n_iter=1)
 
 
-def get_time(timezone='US/Pacific'):
+def get_time(with_dashes=True, timezone='US/Pacific'):
     """
     Returns the time as a string.
     """
-    return dt.datetime.now(pytz.timezone(timezone)).strftime('%Y-%m-%d-%H:%M:%S')
+    if with_dashes:
+        return dt.datetime.now(pytz.timezone(timezone)).strftime('%Y-%m-%d-%H:%M:%S')
+    return dt.datetime.now(pytz.timezone(timezone)).strftime('%Y%m%d-%H%M%S')
 
 
 def get_dataset(train_size=60000, test_size=10000):
@@ -66,24 +68,22 @@ def create_model(cfg):
     return model
 
 
-def get_run_id_path(dir_name='mlflow'):
+def get_tensorboard_callbacks(run_name):
+    """
+    .
+    """
+    model_local_path = get_model_path_local(run_name)
+    return tf.keras.callbacks.TensorBoard(
+        log_dir=os.path.join(model_local_path, 'tensorboard'),
+        update_freq='epoch'
+    )
+
+def get_model_path_local(run_name):
     """
     .
     """
     experiment_id = mlflow.get_experiment_by_name(name=EXPERIMENT_NAME).experiment_id
-    run_id = mlflow.active_run().info.run_id
-    return os.path.join(DATA_PATH, dir_name, experiment_id, run_id)
-
-
-def get_tensorboard_callbacks():
-    """
-    .
-    """
-    return tf.keras.callbacks.TensorBoard(
-        log_dir=os.path.join(get_run_id_path(dir_name='edge_models'), 'tensorboard'),
-        update_freq='epoch'
-    )
-
+    return os.path.join(DATA_PATH, 'edge_models', experiment_id, run_name)
 
 def main():
     """
@@ -98,36 +98,43 @@ def main():
         raise Exception('Usage: $ python3 mflow_demo.py <CONFIG_FILE.yml> optional: <RUN_NAME>')
 
     config_file = sys.argv[1]
-    run_name = sys.argv[2] if len(sys.argv) == 3 else 'default'
+    run_name = get_time(with_dashes=False)
 
     with mlflow.start_run(run_name=run_name):
         with open(os.path.join(config_root, config_file)) as fin:
             cfg = yaml.load(fin, Loader=yaml.FullLoader)
 
-        print('{} Configuration parameters for run_id {}.'.format(get_time(), mlflow.active_run().info.run_id))
+        print('{} Configuration parameters for run_name = {} run_id = {}.'.format(
+            get_time(), run_name, mlflow.active_run().info.run_id)
+        )
         pprint(cfg)
         mlflow.log_params(cfg)
 
         x_train, y_train, x_test, y_test = get_dataset(cfg['train_size'], cfg['test_size'])
 
         model = create_model(cfg)
-        callbacks = [
-            get_tensorboard_callbacks()
-        ]
-        model.fit(x_train, y_train, callbacks=callbacks, epochs=cfg['epochs'])
+        callbacks = [get_tensorboard_callbacks(run_name)]
+        model.fit(
+            x=x_train,
+            y=y_train,
+            validation_split=cfg['validation_split'],
+            callbacks=callbacks,
+            epochs=cfg['epochs'])
 
         # Export SavedModel
-        model_local_path = os.path.join(get_run_id_path(dir_name='edge_models'))
-        if not os.path.exists(model_local_path): os.makedirs(model_local_path)
+        model_local_path = get_model_path_local(run_name)
+
+        if not os.path.exists(model_local_path):
+            os.makedirs(model_local_path)
+
         model.save(os.path.join(model_local_path, 'final_model'))
 
-#         mlflow.tensorflow.log_model(
-#             tf_saved_model_dir=model_local_path,
-#             tf_meta_graph_tags=[tag_constants.SERVING],
-#             tf_signature_def_key='serving_default',
-#             artifact_path='model'
-#         )
-#         mlflow.log_artifacts(os.path.join(get_run_id_path(), 'tensorboard'))
+        mlflow.tensorflow.log_model(
+            tf_saved_model_dir=os.path.join(model_local_path, 'final_model'),
+            tf_meta_graph_tags=[tag_constants.SERVING],
+            tf_signature_def_key='serving_default',
+            artifact_path='model'
+        )
 
 
 if __name__ == '__main__':
