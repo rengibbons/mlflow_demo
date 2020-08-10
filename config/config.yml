@@ -1,15 +1,17 @@
-train_size: 60000
+train_size: 50000
 test_size: 10000
+validation_split: 0.2
 input_shape: 
   - 28
   - 28
 fc_layers: 
   - 128
   - 128
-dropout: 0.5
+dropout: 0.2
 activation: 'relu'
 optimizer: 'adam'
 metrics: # 
   - 'accuracy'
+  - 'categorical_crossentropy'
 epochs: 5 # number of epochs
 output_shape: 10 # number of classification categories
