@@ -93,12 +93,8 @@ def main():
 
     # Load configuration file and default column ordering for df_models.
     config_root = os.path.join(os.path.dirname(os.getcwd()), 'config')
+    config_file = 'config.yml'
 
-    # Check if the correct command line arguments are provied.
-    if len(sys.argv) not in [2, 3]:
-        raise Exception('Usage: $ python3 mflow_demo.py <CONFIG_FILE.yml> optional: <RUN_NAME>')
-
-    config_file = sys.argv[1]
     run_name = get_time()
 
     with mlflow.start_run(run_name=run_name):
